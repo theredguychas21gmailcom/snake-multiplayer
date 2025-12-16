@@ -14,6 +14,18 @@
 #define HEIGHT 20
 #define MAX_LEN 200
 
+typedef enum {
+    STATE_MENU,
+    STATE_SINGLEPLAYER,
+    STATE_MULTIPLAYER_LOCAL, //Local multiplayer using different keys.
+    STATE_MULTIPLAYER_ONLINE, //Online Multiplayer (WIP)
+    STATE_MULTIPLAYER_HOST, //(WIP)
+    STATE_MULTIPLAYER_JOIN, //(WIP)
+    STATE_GAME_OVER
+} GameState;
+
+GameState current_state = STATE_MENU; // Start the game in the menu
+
 typedef struct {
     int x, y;
 } Segment;
@@ -85,21 +97,64 @@ void game_restart() {
     spawnFood();
 }
 
-void pollInput() {
+void pollSinglePlayerInput() {
     char c;
     if (read(STDIN_FILENO, &c, 1) == 1) {
         if (c == 'w' && dirY != 1)  { dirX = 0; dirY = -1; }
         if (c == 's' && dirY != -1) { dirX = 0; dirY = 1; }
         if (c == 'a' && dirX != 1)  { dirX = -1; dirY = 0; }
         if (c == 'd' && dirX != -1) { dirX = 1; dirY = 0; }
-        if (c == 'q') exit(0);
-
-        // --- NEW INSTANT RESTART LOGIC ---
+        
         if (c == 'r') {
             game_restart();
-            printf("\033[2J"); // Clear screen for a fresh start
+            printf("\033[2J"); 
         }
-        // ----------------------------------
+        if (c == 'q') exit(0);
+    }
+}
+
+// -------------------------------
+// Ritfunktioner
+// -------------------------------
+
+void drawMenu() {
+    printf("\033[H\033[2J"); // Clear screen and move cursor to 1,1
+    
+    printf("==========================================\n");
+    printf("|          SNAKE TERMINAL GAME           |\n");
+    printf("==========================================\n\n");
+
+    printf("Choose Mode:\n");
+    printf("  1. Single Player\n");
+    printf("  2. Local Multiplayer (Coming Soon)\n");
+    printf("  3. Online Multiplayer (Coming Soon)\n");
+    printf("  Q. Quit\n\n");
+
+    printf("Enter your choice (1, 2, 3, or Q): ");
+}
+
+// -------------------------------
+// Inmatning/Input
+// -------------------------------
+
+void pollMenuInput() {
+    char c;
+    if (read(STDIN_FILENO, &c, 1) == 1) {
+        if (c == '1') {
+            current_state = STATE_SINGLEPLAYER;
+            printf("\033[2J"); // Clear screen for game start
+            game_restart(); // Initialize game state for SP
+        } else if (c == '2') {
+            current_state = STATE_MULTIPLAYER_LOCAL;
+            printf("\033[2J");
+            game_restart(); // Initialize for MP
+        } else if (c == '3') {
+            // Placeholder: maybe connect to online server later
+            printf("\033[2J");
+            current_state = STATE_MULTIPLAYER_ONLINE;
+        } else if (c == 'q' || c == 'Q') {
+            exit(0);
+        }
     }
 }
 
@@ -165,6 +220,34 @@ void draw() {
     printf("Score: %d\n", snake_length - 3);
     printf("Move: WASD\n");
     printf("Restart: R, Exit: Q.\n");
+}
+
+// Main logic for the single-player game tick
+void runSinglePlayerGameTick(MultiplayerApi* api, json_t* gameData) {
+    pollSinglePlayerInput();
+    moveSnake();
+
+    // Check collision and handle Game Over
+    if (checkCollision()) {
+        current_state = STATE_GAME_OVER; // Change state to Game Over
+        return; // Exit the game tick immediately
+    }
+
+    // Check for food consumption
+    if (snake[0].x == foodX && snake[0].y == foodY) {
+        if (snake_length < MAX_LEN)
+            snake_length++;
+        spawnFood();
+    }
+
+    draw();
+    
+    // Multiplayer logic is still called, even in SP mode (which may be odd)
+    // You should probably remove the multiplayer API calls if not hosting/joining.
+    /*
+    int rc = mp_api_game(api, gameData);
+    printf("Skickade game-data, rc=%d\n", rc);
+    */
 }
 
 // -------------------------------
@@ -312,74 +395,76 @@ int main() {
 
 	int listener_id = mp_api_listen(api, on_multiplayer_event, NULL);
 
-
-    // Starta ormen
-    snake[0] = (Segment){ WIDTH / 2, HEIGHT / 2 };
-    snake[1] = (Segment){ WIDTH / 2 - 1, HEIGHT / 2 };
-    snake[2] = (Segment){ WIDTH / 2 - 2, HEIGHT / 2 };
-
-    spawnFood();
-
 	json_t *gameData = json_object();
 	json_object_set_new(gameData, "x", json_integer(12));
 	json_object_set_new(gameData, "y", json_integer(34));
 	json_object_set_new(gameData, "dir", json_string("right"));
 	
+    // --- MAIN PROGRAM LOOP ---
     while (1) {
+        switch (current_state) {
+            case STATE_MENU:
+                drawMenu();
+                pollMenuInput();
+                usleep(50000); 
+                break;
 
-        pollInput();
-        moveSnake();
+            case STATE_SINGLEPLAYER:
+                runSinglePlayerGameTick(api, gameData);
+                usleep(100000); // Game tick-rate
+                break;
 
-        // Kollision?
-        if (checkCollision()) {
+            // ...
+            case STATE_MULTIPLAYER_LOCAL:
+                // TODO: Implement local multiplayer tick (using P2 keys)
+                usleep(100000);
+                break;
+            // ... and the new HOST and JOIN cases
+
+            case STATE_MULTIPLAYER_ONLINE:
+                // TODO: Implement online multiplayer tick
+                usleep(100000);
+                break;
+
+            // --- ADDED CASES TO HANDLE THE NEW ENUM VALUES ---
+            case STATE_MULTIPLAYER_HOST:
+                // Placeholder for hosting logic
+                usleep(100000);
+                break;
+
+            case STATE_MULTIPLAYER_JOIN:
+                // Placeholder for joining logic
+                usleep(100000);
+                break;
+            // ----------------------------------------------------
             
-            // Display Game Over message
-            printf("\033[HGame Over! Score: %d.\nTo try again press R, else Q.\n", snake_length - 3);
-            
-            // Wait for user input (R or Q)
-            char c = 0;
-            // Loop until 'r' or 'q' is pressedrq
-            while (c != 'r' && c != 'q') {
-                if (read(STDIN_FILENO, &c, 1) == 1) {
-                    if (c == 'r') {
-                        game_restart(); // Restart logic
-                        printf("\033[2J"); // Clear screen for new game
-                        break; // Exit the inner while loop to continue the outer while(1) game loop
+            case STATE_GAME_OVER:
+                // Game Over logic (Waiting for R or Q)
+                printf("\033[HGame Over! Score: %d.\nTo try again press R, to return to Menu press M, else Q.\n", snake_length - 3);
+                
+                char c = 0;
+                while (c != 'r' && c != 'q' && c != 'm') {
+                    if (read(STDIN_FILENO, &c, 1) == 1) {
+                        if (c == 'r') {
+                            game_restart();
+                            printf("\033[2J"); 
+                            current_state = STATE_SINGLEPLAYER; // Restart instantly
+                            break;
+                        }
+                        else if (c == 'm') {
+                            printf("\033[2J");
+                            current_state = STATE_MENU; // Go back to main menu
+                            break;
+                        }
+                        else if(c == 'q') {
+                            goto cleanup;
+                        }
                     }
-                    else if(c == 'q') {
-                        // Exit the entire program gracefully
-                        goto cleanup; // Jumps to the cleanup section at the end of main
-                    }
+                    usleep(10000); 
                 }
-                usleep(10000); // Small pause to prevent 100% CPU use while waiting
-            }
-            // If the user pressed 'r', the inner loop breaks and the game continues.
-            // We do NOT need a 'break' here to exit the outer while(1) loop, as the game has reset.
+                break;
         }
-
-        // Uppätit mat?
-        if (snake[0].x == foodX && snake[0].y == foodY) {
-            if (snake_length < MAX_LEN)
-                snake_length++;
-            spawnFood();
-        }
-
-        draw();
-		
-        usleep(100000); // tick-hastighet
-
-		
-
-		int rc = mp_api_game(api, gameData);
-		printf("Skickade game-data, rc=%d\n", rc);
-
-		sleep(1);
     }
-
-	json_decref(gameData);
-
-	mp_api_unlisten(api, listener_id);
-	mp_api_destroy(api);
 
     cleanup:
             json_decref(gameData);
