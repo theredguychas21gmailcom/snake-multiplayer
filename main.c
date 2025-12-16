@@ -27,8 +27,6 @@ int dirY = 0;
 int foodX;
 int foodY;
 
-char retry;
-
 struct termios orig;
 
 // -------------------------------
@@ -70,21 +68,6 @@ void moveSnake() {
     snake[0].y += dirY;
 }
 
-void game_restart() {
-    // Reset snake state
-    snake_length = 3;
-    dirX = 1;
-    dirY = 0;
-    
-    // Reset snake position
-    snake[0] = (Segment){ WIDTH / 2, HEIGHT / 2 };
-    snake[1] = (Segment){ WIDTH / 2 - 1, HEIGHT / 2 };
-    snake[2] = (Segment){ WIDTH / 2 - 2, HEIGHT / 2 };
-    
-    // Spawn new food
-    spawnFood();
-}
-
 void pollInput() {
     char c;
     if (read(STDIN_FILENO, &c, 1) == 1) {
@@ -93,13 +76,6 @@ void pollInput() {
         if (c == 'a' && dirX != 1)  { dirX = -1; dirY = 0; }
         if (c == 'd' && dirX != -1) { dirX = 1; dirY = 0; }
         if (c == 'q') exit(0);
-
-        // --- NEW INSTANT RESTART LOGIC ---
-        if (c == 'r') {
-            game_restart();
-            printf("\033[2J"); // Clear screen for a fresh start
-        }
-        // ----------------------------------
     }
 }
 
@@ -126,18 +102,18 @@ void draw() {
 
     // Övre ram
     for (int x = 0; x < WIDTH + 2; x++)
-        printf("-");
+        printf("#");
     printf("\n");
 
     // Spelplan + sidramar
     for (int y = 0; y < HEIGHT; y++) {
-        printf("|"); // vänster ram
+        printf("#"); // vänster ram
 
         for (int x = 0; x < WIDTH; x++) {
 
             // Mat
             if (x == foodX && y == foodY) {
-                printf("Ó");
+                printf("O");
                 continue;
             }
 
@@ -154,18 +130,17 @@ void draw() {
             if (!printed) printf(" ");
         }
 
-        printf("|\n"); // höger ram
+        printf("#\n"); // höger ram
     }
 
     // Nedre ram
     for (int x = 0; x < WIDTH + 2; x++)
-        printf("-");
+        printf("#");
     printf("\n");
 
     printf("Score: %d\n", snake_length - 3);
-    printf("Move: WASD\n");
-    printf("Restart: R, Exit: Q.\n");
 }
+
 
 // -------------------------------
 // Main
@@ -225,7 +200,7 @@ int main_host(MultiplayerApi* api)
 	return 0;
 }
 
-/*int main_list(MultiplayerApi* api)
+int main_list(MultiplayerApi* api)
 {
 	printf("Hämtar lista över publika sessioner...\n");
 
@@ -261,7 +236,7 @@ int main_host(MultiplayerApi* api)
 
 	json_decref(sessionList);
 	return 0;
-}*/
+}
 
 int main_join(MultiplayerApi* api, const char* sessionId)
 {
@@ -305,7 +280,8 @@ int main() {
 		return 1;
 	}
 
-	main_host(api);
+	//main_host(api);
+	main_list(api);
 	//main_join(api, "HU2J7D");
 
 
@@ -327,34 +303,14 @@ int main() {
 	
     while (1) {
 
+		/*
         pollInput();
         moveSnake();
 
         // Kollision?
         if (checkCollision()) {
-            
-            // Display Game Over message
-            printf("\033[HGame Over! Score: %d.\nTo try again press R, else Q.\n", snake_length - 3);
-            
-            // Wait for user input (R or Q)
-            char c = 0;
-            // Loop until 'r' or 'q' is pressedrq
-            while (c != 'r' && c != 'q') {
-                if (read(STDIN_FILENO, &c, 1) == 1) {
-                    if (c == 'r') {
-                        game_restart(); // Restart logic
-                        printf("\033[2J"); // Clear screen for new game
-                        break; // Exit the inner while loop to continue the outer while(1) game loop
-                    }
-                    else if(c == 'q') {
-                        // Exit the entire program gracefully
-                        goto cleanup; // Jumps to the cleanup section at the end of main
-                    }
-                }
-                usleep(10000); // Small pause to prevent 100% CPU use while waiting
-            }
-            // If the user pressed 'r', the inner loop breaks and the game continues.
-            // We do NOT need a 'break' here to exit the outer while(1) loop, as the game has reset.
+            printf("\033[HGame Over!\n");
+            break;
         }
 
         // Uppätit mat?
@@ -366,7 +322,8 @@ int main() {
 
         draw();
 		
-        usleep(100000); // tick-hastighet
+        usleep(120000); // tick-hastighet
+		*/
 
 		
 
@@ -380,11 +337,6 @@ int main() {
 
 	mp_api_unlisten(api, listener_id);
 	mp_api_destroy(api);
-
-    cleanup:
-            json_decref(gameData);
-            mp_api_unlisten(api, listener_id);
-            mp_api_destroy(api);
 
     return 0;
 }
