@@ -154,6 +154,7 @@ int main() {
     }
 
     int listener_id = mp_api_listen(api, on_multiplayer_event, NULL);
+	int menu_needs_redraw = 1;
 
     json_t *gameData = json_object();
     json_object_set_new(gameData, "x", json_integer(12));
@@ -166,10 +167,13 @@ int main() {
     while (1) {
         switch (current_state) {
             case STATE_MENU:
-                drawMenu();
-                pollMenuInput();
-                usleep(50000); 
-                break;
+    		if (menu_needs_redraw) {
+        		drawMenu();
+        	menu_needs_redraw = 0; // Stop drawing until something changes
+    		}
+    		pollMenuInput(); 
+    		usleep(50000); 
+    		break;
 
             case STATE_SINGLEPLAYER:
                 last_active_mode = STATE_SINGLEPLAYER;

@@ -31,10 +31,12 @@ void enableRawMode()  {
 
     // gör stdin icke-blockerande
     fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK);
+    printf("\033[?25l");
 }
 
 void disableRawMode() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig);
+    printf("\033[?25l");
 }
 
 // ---------------------------------
@@ -136,7 +138,7 @@ void pollMenuInput() {
 // ------------------------------
 
 void drawMenu() {
-    printf("\033[H\033[2J"); // Clear screen and move cursor to 1,1
+    printf("\033[H"); // Clear screen and move cursor to 1,1
     
     printf("==========================================\n");
     printf("|          SNAKE TERMINAL GAME           |\n");
