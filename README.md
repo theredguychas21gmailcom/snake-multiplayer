@@ -72,4 +72,4 @@ A typical network tick looks like this:
 ### Project `snake-multiplayer` is brought straight to *your house* by TheRedGuyLmao (Ruslan Bilonozhko, SUVX25).
 **ⓒ 2025-12-22**
 
-![alt text](https://character-stats-and-profiles.fandom.com/wiki/Tenna_%28Canon,_Deltarune%29/MisterNobodyVulAdvAoyll)
+![Tenna](https://static.wikia.nocookie.net/character-stats-and-profiles/images/d/d9/Tenna.webp/revision/latest?cb=20250629194044)
