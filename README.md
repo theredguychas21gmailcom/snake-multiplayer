@@ -69,5 +69,7 @@ A typical network tick looks like this:
   "score": 5
 }
 ```
-### Project `snake-multiplayer` is brought to *you* by TheRedGuyLmao (Ruslan Bilonozhko, SUVX25).
+### Project `snake-multiplayer` is brought straight to *your house* by TheRedGuyLmao (Ruslan Bilonozhko, SUVX25).
 **ⓒ 2025-12-22**
+
+![alt text](https://character-stats-and-profiles.fandom.com/wiki/Tenna_%28Canon,_Deltarune%29/MisterNobodyVulAdvAoyll)
