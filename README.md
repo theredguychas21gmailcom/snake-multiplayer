@@ -1,13 +1,13 @@
 # 🐍 Terminal Snake Online
 
-### A retro terminal-based game engine with online multiplayer.
+### A terminal-based snake game engine with WIP online multiplayer.
 Built in C using a custom Finite State Machine and JSON API synchronization.
 
 ---
 
 ## 🕹️ Game Modes
 
-* **Single Player:** Classic Snake-game on your own terminal!
+* **Single Player:** Classic Snake-game in your own terminal!
 * **Local Multiplayer:** 1v1 on a single keyboard (WIP).
 * **Online Host/Join:** Same 1v1 but online. Create or join rooms using a 6-digit session ID (WIP).
 * **Starvation Royale:** Battle-royale style survival (WIP).
@@ -28,13 +28,14 @@ You need the `jansson` library for JSON handling.
 
 ### 2. Compilation
 
-Compilation is not nessecary, I release the updates with pre-compiled 
+Compilation is not nessecary, I release the updates with pre-compiled. If needed to recompile - check the instructions below.
 
 ### 3. Execution
 The game is provided with a Make-file, placed in `/Snake/C/Makefile`. It includes functions, such as:
 ```bash
-make all //compile the project inside of the folder where Makefile is placed
+make //compile the project inside of the folder where Makefile is placed
 make run //run the game
+./Snake //runs the game outside of Makefile
 make clean //delete all compiled files
 ```
 
