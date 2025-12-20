@@ -27,6 +27,7 @@ typedef struct ListenerSnapshot {
 struct MultiplayerApi {
     char *server_host;
     uint16_t server_port;
+    char *app_guid;
     int sockfd;
     char *session_id;
 
@@ -48,7 +49,7 @@ static void *recv_thread_main(void *arg);
 static void process_line(MultiplayerApi *api, const char *line);
 static int start_recv_thread(MultiplayerApi *api);
 
-MultiplayerApi *mp_api_create(const char *server_host, uint16_t server_port) {
+MultiplayerApi *mp_api_create(const char *server_host, uint16_t server_port, const char *app_guid) {
     MultiplayerApi *api = (MultiplayerApi *)calloc(1, sizeof(MultiplayerApi));
     if (!api) {
         return NULL;
@@ -63,6 +64,10 @@ MultiplayerApi *mp_api_create(const char *server_host, uint16_t server_port) {
     if (!api->server_host) {
         free(api);
         return NULL;
+    }
+
+    if (app_guid) {
+        api->app_guid = strdup(app_guid);
     }
 
     api->server_port = server_port;
@@ -111,6 +116,9 @@ void mp_api_destroy(MultiplayerApi *api) {
     if (api->server_host) {
         free(api->server_host);
     }
+    if (api->app_guid) {
+        free(api->app_guid);
+    }
 
     pthread_mutex_destroy(&api->lock);
     free(api);
@@ -128,6 +136,10 @@ int mp_api_host(MultiplayerApi *api,
 
     json_t *root = json_object();
     if (!root) return MP_API_ERR_IO;
+
+    if (api->app_guid) {
+        json_object_set_new(root, "appId", json_string(api->app_guid));
+    }
 
     json_object_set_new(root, "session", json_null());
     json_object_set_new(root, "cmd", json_string("host"));
@@ -276,6 +288,10 @@ int mp_api_join(MultiplayerApi *api,
 
     json_t *root = json_object();
     if (!root) return MP_API_ERR_IO;
+
+    if (api->app_guid) {
+        json_object_set_new(root, "appId", json_string(api->app_guid));
+    }
 
     json_object_set_new(root, "session", json_string(sessionId));
     json_object_set_new(root, "cmd", json_string("join"));

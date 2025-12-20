@@ -31,7 +31,7 @@ enum {
 };
 
 /* Skapar en ny API‑instans. Returnerar NULL vid fel. */
-MultiplayerApi *mp_api_create(const char *server_host, uint16_t server_port);
+MultiplayerApi *mp_api_create(const char *server_host, uint16_t server_port, const char *app_guid);
 
 /* Stänger ner anslutning, stoppar mottagartråd och frigör minne. */
 void mp_api_destroy(MultiplayerApi *api);

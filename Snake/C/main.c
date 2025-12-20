@@ -14,6 +14,8 @@
 // Main
 // -------------------------------
 
+char currentSessionId[64] = {0};
+
 static void on_multiplayer_event(
     const char *event,
     int64_t messageId,
@@ -49,23 +51,28 @@ static void on_multiplayer_event(
 
 int main_host(MultiplayerApi* api)
 {
-	char *session = NULL;
-	char *clientId = NULL;
-	json_t *hostData = NULL;
+    char *session = NULL;
+    char *clientId = NULL;
+    json_t *hostData = NULL;
 
-	int rc = mp_api_host(api, &session, &clientId, &hostData);
-	if (rc != MP_API_OK) {
-		printf("Kunde inte skapa session: %d\n", rc);
-		return -1;
-	}
+    int rc = mp_api_host(api, &session, &clientId, &hostData);
+    if (rc != MP_API_OK) {
+        printf("Kunde inte skapa session: %d\n", rc);
+        return -1;
+    }
 
-	printf("Du hostar session: %s (clientId: %s)\n", session, clientId);
-	/* hostData kan innehålla extra data från servern (oftast tomt objekt) */
-	if (hostData) json_decref(hostData);
-	free(session);
-	free(clientId);
+    printf("Du hostar session: %s (clientId: %s)\n", session, clientId);
+    
+    // SAVE THE SESSION ID so we can draw it later
+    if(session) {
+        snprintf(currentSessionId, sizeof(currentSessionId), "%s", session);
+    }
 
-	return 0;
+    if (hostData) json_decref(hostData);
+    free(session);
+    free(clientId);
+
+    return 0;
 }
 
 /*int main_list(MultiplayerApi* api)
@@ -139,27 +146,22 @@ int main() {
     enableRawMode();
     atexit(disableRawMode);
 
-    printf("\033[2J"); // rensa skärmen
+    printf("\033[2J"); 
 
-	MultiplayerApi* api = mp_api_create("kontoret.onvo.se", 9001);
-	if (!api)
-	{
-		/* felhantering */
-		return 1;
-	}
+    MultiplayerApi* api = mp_api_create("mpapi.se", 9001, "94929f46-845c-4832-9564-5cbef51c68df");
+    if (!api) {
+        return 1;
+    }
 
-	main_host(api);
-	//main_join(api, "HU2J7D");
+    int listener_id = mp_api_listen(api, on_multiplayer_event, NULL);
 
+    json_t *gameData = json_object();
+    json_object_set_new(gameData, "x", json_integer(12));
+    json_object_set_new(gameData, "y", json_integer(34));
+    json_object_set_new(gameData, "dir", json_string("right"));
+    
+    GameState last_active_mode = STATE_SINGLEPLAYER;
 
-
-	int listener_id = mp_api_listen(api, on_multiplayer_event, NULL);
-
-	json_t *gameData = json_object();
-	json_object_set_new(gameData, "x", json_integer(12));
-	json_object_set_new(gameData, "y", json_integer(34));
-	json_object_set_new(gameData, "dir", json_string("right"));
-	
     // --- MAIN PROGRAM LOOP ---
     while (1) {
         switch (current_state) {
@@ -170,66 +172,85 @@ int main() {
                 break;
 
             case STATE_SINGLEPLAYER:
+                last_active_mode = STATE_SINGLEPLAYER;
                 runSinglePlayerGameTick(api, gameData);
-                usleep(100000); // Game tick-rate
+                usleep(100000);
                 break;
 
-            // ...
             case STATE_MULTIPLAYER_LOCAL:
-                // TODO: Implement local multiplayer tick (using P2 keys)
-                usleep(100000);
-                break;
-            // ... and the new HOST and JOIN cases
-
-            case STATE_MULTIPLAYER_ONLINE:
-                // TODO: Implement online multiplayer tick
+                last_active_mode = STATE_MULTIPLAYER_LOCAL;
+                // Placeholder for local MP tick
                 usleep(100000);
                 break;
 
-            // --- ADDED CASES TO HANDLE THE NEW ENUM VALUES ---
             case STATE_MULTIPLAYER_HOST:
-                // Placeholder for hosting logic
-                usleep(100000);
-                break;
-
-            case STATE_MULTIPLAYER_JOIN:
-                // Placeholder for joining logic
-                usleep(100000);
-                break;
-            // ----------------------------------------------------
-            
-            case STATE_GAME_OVER:
-                // Game Over logic (Waiting for R or Q)
-                printf("\033[HGame Over! Score: %d.\nTo try again press R, to return to Menu press M, else Q.\n", snake_length - 3);
-                
-                char c = 0;
-                while (c != 'r' && c != 'q' && c != 'm') {
-                    if (read(STDIN_FILENO, &c, 1) == 1) {
-                        if (c == 'r') {
-                            game_restart();
-                            printf("\033[2J"); 
-                            current_state = STATE_SINGLEPLAYER; // Restart instantly
-                            break;
-                        }
-                        else if (c == 'm') {
-                            printf("\033[2J");
-                            current_state = STATE_MENU; // Go back to main menu
-                            break;
-                        }
-                        else if(c == 'q') {
-                            goto cleanup;
-                        }
-                    }
-                    usleep(10000); 
+                if (main_host(api) == 0) {
+                    current_state = STATE_MULTIPLAYER_ONLINE;
+                } else {
+                    current_state = STATE_MENU;
                 }
                 break;
-        }
-    }
 
-    cleanup:
-            json_decref(gameData);
-            mp_api_unlisten(api, listener_id);
-            mp_api_destroy(api);
+            case STATE_MULTIPLAYER_ONLINE:
+                usleep(100000);
+                break;
+
+            case STATE_STARVATION_ROYALE:
+                printf("\033[H Mode coming soon! Press M for menu.\n");
+                char c_wait;
+                if (read(STDIN_FILENO, &c_wait, 1) == 1 && (c_wait == 'm' || c_wait == 'M')) {
+                    current_state = STATE_MENU;
+                }
+                usleep(100000);
+                break;
+
+            case STATE_GAME_OVER: {
+                static int has_saved = 0;
+                if (!has_saved) {
+                    check_and_save_highscore(last_active_mode, snake_length - 3);
+                    has_saved = 1;
+                }
+
+                int best = get_highscore(last_active_mode);
+                printf("\033[H"); // Move cursor to top
+                printf("==========================================\n");
+                printf("                GAME OVER!                \n");
+                printf("==========================================\n");
+                printf(" Mode: %s\n", get_highscore_filename(last_active_mode));
+                printf(" Score: %d\n", snake_length - 3);
+                printf(" BEST SCORE: %d\n", best);
+                printf("==========================================\n");
+                printf(" [R] Try Again   [M] Menu   [Q] Quit      \n");
+                
+                char c_go = 0;
+                if (read(STDIN_FILENO, &c_go, 1) == 1) {
+                    if (c_go == 'r' || c_go == 'm') {
+                        has_saved = 0; 
+                        printf("\033[2J");
+                        if (c_go == 'r') {
+                            game_restart();
+                            current_state = last_active_mode;
+                        } else {
+                            current_state = STATE_MENU;
+                        }
+                    } else if (c_go == 'q') {
+                        goto cleanup;
+                    }
+                }
+                usleep(50000);
+                break;
+            }
+
+            default:
+                current_state = STATE_MENU;
+                break;
+        } // End of switch
+    } // End of while
+
+cleanup:
+    json_decref(gameData);
+    mp_api_unlisten(api, listener_id);
+    mp_api_destroy(api);
 
     return 0;
 }

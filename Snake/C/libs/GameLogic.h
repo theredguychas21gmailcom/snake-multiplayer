@@ -16,8 +16,9 @@ typedef enum {
     STATE_SINGLEPLAYER,
     STATE_MULTIPLAYER_LOCAL, //Local multiplayer using different keys.
     STATE_MULTIPLAYER_ONLINE, //Online Multiplayer (WIP)
-    STATE_MULTIPLAYER_HOST, //(WIP)
-    STATE_MULTIPLAYER_JOIN, //(WIP)
+    STATE_MULTIPLAYER_HOST, //Hosting a session (WIP)
+    STATE_MULTIPLAYER_JOIN, //Joining a session (WIP)
+    STATE_STARVATION_ROYALE, //Royale one or two instance session (WIP)
     STATE_GAME_OVER
 } GameState;
 
@@ -74,5 +75,13 @@ void draw();
 // -------------------------------
 
 void runSinglePlayerGameTick(MultiplayerApi* api, json_t* gameData);
+
+// -------------------------------
+// Highscore Prototypes
+// -------------------------------
+
+const char* get_highscore_filename(GameState mode);
+int get_highscore(GameState mode);
+void check_and_save_highscore(GameState mode, int current_score);
 
 #endif //GAMELOGIC_H

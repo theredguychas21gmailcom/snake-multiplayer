@@ -112,16 +112,19 @@ void pollMenuInput() {
     if (read(STDIN_FILENO, &c, 1) == 1) {
         if (c == '1') {
             current_state = STATE_SINGLEPLAYER;
-            printf("\033[2J"); // Clear screen for game start
-            game_restart(); // Initialize game state for SP
+            printf("\033[2J");
+            game_restart();
         } else if (c == '2') {
             current_state = STATE_MULTIPLAYER_LOCAL;
             printf("\033[2J");
-            game_restart(); // Initialize for MP
+            game_restart();
         } else if (c == '3') {
-            // Placeholder: maybe connect to online server later
-            printf("\033[2J");
+            // Map 3 to Multiplayer
             current_state = STATE_MULTIPLAYER_ONLINE;
+            printf("\033[2J");
+        } else if (c == '4') {
+             // Map 4 to ROYALE Mode 
+             current_state = STATE_STARVATION_ROYALE;
         } else if (c == 'q' || c == 'Q') {
             exit(0);
         }
@@ -140,9 +143,10 @@ void drawMenu() {
     printf("==========================================\n\n");
 
     printf("Choose Mode:\n");
-    printf("  1. Single Player\n");
-    printf("  2. Local Multiplayer (Coming Soon)\n");
+    printf("  1. Single Player (Best: %d)\n", get_highscore(STATE_SINGLEPLAYER));
+    printf("  2. Local Multiplayer (Best: %d)\n", get_highscore(STATE_MULTIPLAYER_LOCAL));
     printf("  3. Online Multiplayer (Coming Soon)\n");
+    printf("  4. Starvation Royale Mode (Won Games: %d)\n", get_highscore(STATE_STARVATION_ROYALE));
     printf("  Q. Quit\n\n");
 
     printf("Enter your choice (1, 2, 3, or Q): ");
@@ -194,6 +198,7 @@ void draw() {
     printf("Move: WASD\n");
     printf("Restart: R, Exit: Q.\n");
 }
+
 // -------------------------------------
 // --- 6. Game Loop Tick Definitions ---
 // -------------------------------------
@@ -224,4 +229,40 @@ void runSinglePlayerGameTick(MultiplayerApi* api, json_t* gameData) {
     int rc = mp_api_game(api, gameData);
     printf("Skickade game-data, rc=%d\n", rc);
     */
+}
+
+// ---------------------------
+// --- 7. Highscore system --- 
+// ---------------------------
+
+const char* get_highscore_filename(GameState mode) {
+    switch(mode) {
+        case STATE_SINGLEPLAYER:       return "high_single.txt";
+        case STATE_MULTIPLAYER_LOCAL:  return "high_local.txt";
+        case STATE_MULTIPLAYER_ONLINE: return "high_online.txt";
+        case STATE_STARVATION_ROYALE:  return "high_royale.txt";
+        default: return "high_general.txt";
+    }
+}
+
+int get_highscore(GameState mode) {
+    int score = 0;
+    FILE *f = fopen(get_highscore_filename(mode), "r");
+    if (f) {
+        if (fscanf(f, "%d", &score) != 1) score = 0;
+        fclose(f);
+    }
+    return score;
+}
+
+void check_and_save_highscore(GameState mode, int current_score) {
+    int best = get_highscore(mode);
+    
+    if (current_score > best) {
+        FILE *f = fopen(get_highscore_filename(mode), "w");
+        if (f) {
+            fprintf(f, "%d", current_score);
+            fclose(f);
+        }
+    }
 }
