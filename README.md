@@ -28,10 +28,10 @@ You need the `jansson` library for JSON handling.
 
 ### 2. Compilation
 
-Compilation is not nessecary, I release the updates with pre-compiled. If needed to recompile - check the instructions below.
+Compilation is **not nessecary**, I will release the updates to the game pre-compiled. If needed to recompile - check the instructions below.
 
 ### 3. Execution
-The game is provided with a Make-file, placed in `/Snake/C/Makefile`. It includes functions, such as:
+The game is provided with a `Makefile`, placed in `/Snake/C/Makefile`. It includes functions, such as:
 ```bash
 make //compile the project inside of the folder where Makefile is placed
 make run //run the game
@@ -40,11 +40,11 @@ make clean //delete all compiled files
 ```
 
 ## 🛠️ Technical Overview
-The game logic is separated from the rendering and networking layers to ensure smooth performance.
+The game logic is separated from the rendering and networking layers to ensure smooth performance. 
 
 ## Component	Responsibility
-`GameLogic.c`	Snake movement, collision logic, and grid rendering
-`MultiplayerApi.c`	Communicates with the mpapi.se server via JSON
+`GameLogic.c and .h`	Snake movement, collision logic, and grid rendering
+`MultiplayerApi.c and .h`	Communicates with the mpapi.se server via JSON
 `main.c`	Manages the State Machine and global application timing
 `Highscore System`	Persistent `.txt` file storage for different modes
 
@@ -69,4 +69,5 @@ A typical network tick looks like this:
   "score": 5
 }
 ```
-### Project maintained by TheRedGuyLmao(Ruslan Bilonozhko, SUVX25).
+### Project `snake-multiplayer` is brought to *you* by TheRedGuyLmao (Ruslan Bilonozhko, SUVX25).
+**ⓒ 2025-12-22**
