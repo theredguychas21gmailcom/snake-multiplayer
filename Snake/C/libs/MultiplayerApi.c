@@ -397,13 +397,8 @@ int mp_api_game(MultiplayerApi *api, json_t *data) {
     json_object_set_new(root, "session", json_string(api->session_id));
     json_object_set_new(root, "cmd", json_string("game"));
 
-    json_t *data_copy;
-    if (json_is_object(data)) {
-        data_copy = json_deep_copy(data);
-    } else {
-        data_copy = json_object();
-    }
-    json_object_set_new(root, "data", data_copy);
+    json_incref(data); 
+    json_object_set_new(root, "data", data);
 
     return send_json_line(api, root);
 }

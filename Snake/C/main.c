@@ -21,31 +21,64 @@ static void on_multiplayer_event(
     int64_t messageId,
     const char *clientId,
     json_t *data,
-    void *user_data)
-{
+    void *user_data) {
+
+		char* strData = NULL;
 	
-	char* strData = NULL;
-	
-	if(data)
-		strData = json_dumps(data, JSON_INDENT(2));
+		if(data)
+			strData = json_dumps(data, JSON_INDENT(2));
 
 	printf("Multiplayer event: %s (msgId: %lld, clientId: %s)\n", event, (long long)messageId, clientId ? clientId : "null");
-	if (strData)
-	{
-		printf("Data: %s\n", strData);
-	}
+		if (strData) {
+			printf("Data: %s\n", strData);
+		}
 
-    /* event: "joined", "leaved" (om servern skickar det), eller "game" */
-    if (strcmp(event, "joined") == 0) {
+		if (strcmp(event, "game") == 0) {
+        	// 1. Sync Snake
+        	json_t *body = json_object_get(data, "body");
+        		if (json_is_array(body)) {
+            		snake2_length = json_array_size(body);
+            		for (size_t i = 0; i < snake2_length && i < MAX_LEN; i++) {
+                		json_t *seg = json_array_get(body, i);
+                		snake2[i].x = json_integer_value(json_object_get(seg, "x"));
+                		snake2[i].y = json_integer_value(json_object_get(seg, "y"));
+            		}
+        		}
 
-	} else if (strcmp(event, "leaved") == 0) {
+        		// 2. Sync Map Size (Royale)
+        		json_t *w = json_object_get(data, "w");
+        		json_t *h = json_object_get(data, "h");
+        		if (w && h) {
+            		currentWidth = json_integer_value(w);
+            		currentHeight = json_integer_value(h);
+        		}
 
-    } else if (strcmp(event, "game") == 0) {
-        
-    }
-
-	free(strData);
-
+        		// 3. Sync Food (Single OR Array for Royale)
+				if (!is_host) {
+	    			json_t *foods = json_object_get(data, "foods"); // Look for the array
+	    			if (json_is_array(foods)) {
+	        			active_food_count = json_array_size(foods);
+	        			for (size_t i = 0; i < active_food_count && i < 50; i++) {
+	            			json_t *f = json_array_get(foods, i);
+	            			foodX_array[i] = json_integer_value(json_object_get(f, "x"));
+	            			foodY_array[i] = json_integer_value(json_object_get(f, "y"));
+	        			}
+	    			} else {
+	        			// Fallback for standard 1v1 mode
+	        			json_t *fx = json_object_get(data, "fx");
+	        			json_t *fy = json_object_get(data, "fy");
+	        			if (fx && fy) {
+	            			foodX = json_integer_value(fx);
+	            			foodY = json_integer_value(fy);
+	            			foodX_array[0] = foodX; 
+	            			foodY_array[0] = foodY; 
+	            			active_food_count = 1;
+	        			}
+	    			}
+				}
+			}
+    		if (strData)
+				free(strData);
     /* data är ett json_t* (object); anropa json_incref(data) om du vill spara det efter callbacken */
 }
 
@@ -61,8 +94,11 @@ int main_host(MultiplayerApi* api)
         return -1;
     }
 
-    printf("Du hostar session: %s (clientId: %s)\n", session, clientId);
-    
+	if (rc == MP_API_OK) {
+        is_host = 1; // Mark as host
+        printf("Du hostar session: %s\n", session);
+    }  
+  
     // SAVE THE SESSION ID so we can draw it later
     if(session) {
         snprintf(currentSessionId, sizeof(currentSessionId), "%s", session);
@@ -128,6 +164,7 @@ int main_join(MultiplayerApi* api, const char* sessionId)
 	if (rc == MP_API_OK) {
 		printf("Ansluten till session: %s (clientId: %s)\n", joinedSession, joinedClientId);
 		/* joinData kan innehålla status eller annan info */
+		is_host = 0;
 		if (joinData) json_decref(joinData);
 		free(joinedSession);
 		free(joinedClientId);
@@ -179,36 +216,167 @@ int main() {
                 last_active_mode = STATE_SINGLEPLAYER;
                 runSinglePlayerGameTick(api, gameData);
                 usleep(100000);
-                break;
+            break;
 
             case STATE_MULTIPLAYER_LOCAL:
-                last_active_mode = STATE_MULTIPLAYER_LOCAL;
-                // Placeholder for local MP tick
-                usleep(100000);
-                break;
+    			last_active_mode = STATE_MULTIPLAYER_LOCAL;
+    			pollLocalMultiplayerInput();
+    
+    			// Move both
+    			for (int i = snake_length - 1; i > 0; i--) snake[i] = snake[i - 1];
+    			snake[0].x += dirX; snake[0].y += dirY;
+    
+    			for (int i = snake2_length - 1; i > 0; i--) snake2[i] = snake2[i - 1];
+    			snake2[0].x += dirX2; snake2[0].y += dirY2;
 
-            case STATE_MULTIPLAYER_HOST:
-                if (main_host(api) == 0) {
+    			int result = checkMultiplayerCollision();
+    			if (result > 0) {
+    			    current_state = STATE_GAME_OVER;
+    			}
+
+    			// Food check for both...
+    			if (snake[0].x == foodX && snake[0].y == foodY) { snake_length++; spawnFood(); }
+    			if (snake2[0].x == foodX && snake2[0].y == foodY) { snake2_length++; spawnFood(); }
+
+    			draw(); // Make sure draw() is updated to loop through snake2 as well!
+    			usleep(100000);
+    		break;
+
+			// --- JOIN STATE (Restored) ---
+            case STATE_MULTIPLAYER_JOIN: {
+                char joinCode[64];
+                disableRawMode(); // Let user see what they type
+                printf("\033[2J\033[H");
+                printf("Enter Room Code to Join: ");
+                if (scanf("%63s", joinCode) == 1) {
+                    printf("Joining %s...\n", joinCode);
+                    main_join(api, joinCode);
                     current_state = STATE_MULTIPLAYER_ONLINE;
+                    game_restart();
                 } else {
                     current_state = STATE_MENU;
                 }
-                break;
+                enableRawMode();
+            } break;
 
-            case STATE_MULTIPLAYER_ONLINE:
-                usleep(100000);
-                break;
-
-            case STATE_STARVATION_ROYALE:
-                printf("\033[H Mode coming soon! Press M for menu.\n");
-                char c_wait;
-                if (read(STDIN_FILENO, &c_wait, 1) == 1 && (c_wait == 'm' || c_wait == 'M')) {
-                    current_state = STATE_MENU;
+            case STATE_MULTIPLAYER_HOST:
+                if (strcmp(currentSessionId, "") == 0) {
+                    if (main_host(api) == 0) {
+                        printf("\033[2J\033[H");
+                        printf("Session Created! Room Code: %s\n", currentSessionId);
+                        printf("Waiting for opponent...\n");
+                    } else {
+                        current_state = STATE_MENU;
+                    }
                 }
-                usleep(100000);
-                break;
+                if (active_players >= 2) {
+                    current_state = STATE_MULTIPLAYER_ONLINE;
+                    game_restart();
+                }
+                usleep(100000); 
+            break;
 
-            case STATE_GAME_OVER: {
+            case STATE_MULTIPLAYER_ONLINE: 
+                last_active_mode = STATE_MULTIPLAYER_ONLINE;
+
+                pollSinglePlayerInput(); 
+                moveSnake(); 
+
+                if (checkCollision()) {
+                    current_state = STATE_GAME_OVER;
+                }
+            
+                if (is_host) {
+                    if (snake[0].x == foodX && snake[0].y == foodY) {
+                        snake_length++;
+                        spawnFood(); 
+                    }
+                }
+            
+                // --- PACKING DATA ---
+                json_t *syncData = json_object();
+                json_t *body = json_array();
+                for (int i = 0; i < snake_length; i++) {
+                    json_t *seg = json_object();
+                    json_object_set_new(seg, "x", json_integer(snake[i].x));
+                    json_object_set_new(seg, "y", json_integer(snake[i].y));
+                    json_array_append_new(body, seg);
+                }
+                json_object_set_new(syncData, "body", body);
+            
+                if (is_host) {
+                    json_object_set_new(syncData, "fx", json_integer(foodX));
+                    json_object_set_new(syncData, "fy", json_integer(foodY));
+                }
+            
+                mp_api_game(api, syncData);
+                json_decref(syncData); 
+            
+                draw(); 
+                usleep(100000); 
+            break;
+
+			case STATE_STARVATION_ROYALE: 
+			    static time_t lobby_start = 0;
+			    static int game_started = 0;
+			    static int initial_players = 0;
+
+			    if (!game_started) {
+			        if (lobby_start == 0) lobby_start = time(NULL);
+			        int countdown = 60 - (int)(time(NULL) - lobby_start);
+				
+			        printf("\033[H\033[2J=== LOBBY ===\nPlayers: %d\nStarts in: %d\n", active_players, countdown);
+				
+			        if (countdown <= 0) {
+			            game_started = 1;
+			            initial_players = active_players;
+			            game_restart();
+			            updateArenaSize(active_players); // 20x20 for 10 players, etc.
+			        }
+			        usleep(500000);
+			    } else {
+			        pollSinglePlayerInput();
+			        moveSnake();
+				
+			        // SHRINK LOGIC: If half the players are gone, shrink map 1.5x
+			        if (active_players <= initial_players / 2) {
+			            currentWidth /= 1.5;
+			            currentHeight /= 1.5;
+			            // Ensure we don't shrink to 0
+			            if (currentWidth < 5) currentWidth = 5; 
+			            if (currentHeight < 5) currentHeight = 5;
+			        }
+				
+			        // Pack data for others
+			        json_t *syncData = json_object();
+			        json_object_set_new(syncData, "w", json_integer(currentWidth));
+			        json_object_set_new(syncData, "h", json_integer(currentHeight));
+
+
+			        mp_api_game(api, syncData);
+			        json_decref(syncData);
+				
+			        if (checkCollision()) {
+			            current_state = STATE_ROYALE_SPECTATOR; 
+			        }
+				
+			        draw(); 
+			        usleep(100000);
+			    }
+			break;
+			
+			case STATE_ROYALE_SPECTATOR:
+			    draw();
+			    printf("\n[ SPECTATING ] - %d Players remaining.\n", active_players);
+			    printf("Press M for Menu\n");
+			    char c_spec;
+			    if (read(STDIN_FILENO, &c_spec, 1) == 1 && (c_spec == 'm' || c_spec == 'M')) {
+			        current_state = STATE_MENU;
+			    }
+			    usleep(100000);
+			break;
+
+            case STATE_GAME_OVER: 
                 static int has_saved = 0;
                 if (!has_saved) {
                     check_and_save_highscore(last_active_mode, snake_length - 3);
@@ -242,8 +410,7 @@ int main() {
                     }
                 }
                 usleep(50000);
-                break;
-            }
+            break;
 
             default:
                 current_state = STATE_MENU;
@@ -251,10 +418,10 @@ int main() {
         } // End of switch
     } // End of while
 
-cleanup:
-    json_decref(gameData);
-    mp_api_unlisten(api, listener_id);
-    mp_api_destroy(api);
+	cleanup:
+	    json_decref(gameData);
+	    mp_api_unlisten(api, listener_id);
+	    mp_api_destroy(api);
 
     return 0;
 }
